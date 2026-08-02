@@ -5,6 +5,7 @@ import torch
 import sklearn
 import scipy
 from pathlib import Path
+import json
 
 p  = Path('./eye_state_detection/data')
 arr = []
@@ -59,12 +60,21 @@ plt.savefig("test_plot.png")
 
 model = sklearn.linear_model.LogisticRegression()
 model.fit(features_train_data, labels_train_data)
-print(model.score(features_validate_data, labels_validate_data))
-print(model.score(features_test_data, labels_test_data))
-
 forest = sklearn.ensemble.RandomForestClassifier()
 forest.fit(features_train_data, labels_train_data)
-print(forest.score(features_validate_data, labels_validate_data))
-print(forest.score(features_test_data, labels_test_data))
+
+results = {
+    "logistic_regression": {
+        "validate": model.score(features_validate_data, labels_validate_data),
+        "test": model.score(features_test_data, labels_test_data),
+    },
+    "random_forest": {
+        "validate": forest.score(features_validate_data, labels_validate_data),
+        "test": forest.score(features_test_data, labels_test_data),
+    },
+}
+
+with open("results.json", "w") as f:
+    json.dump(results, f, indent=2)
 
 

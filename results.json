@@ -1,0 +1,10 @@
+{
+  "logistic_regression": {
+    "validate": 0.7483311081441922,
+    "test": 0.6682242990654206
+  },
+  "random_forest": {
+    "validate": 0.732977303070761,
+    "test": 0.671562082777036
+  }
+}
