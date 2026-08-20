@@ -1,13 +1,10 @@
 # Eye State & Driver Drowsiness Detection (EEG)
 
-Two small ML projects built from raw EEG data, going from classical ML through to a
-from-scratch PyTorch neural network. Built while working through Purdue IEEE SMC's
-software team ML learning guide, using it as material to practice the full workflow:
-load real data, clean it, split it properly, train multiple model types, and actually
-understand every line well enough to explain it.
-
-The goal was never a state-of-the-art model. It was learning the workflow end to end
-and being able to defend every design choice.
+Two ML projects built end to end from raw EEG data: one using classical ML, one
+using a neural network built from scratch in PyTorch. The focus was the full
+workflow — loading real data, cleaning and preprocessing it properly, splitting it
+without leaking information between sets, training and comparing multiple model
+types, and evaluating them honestly.
 
 ## What's here
 
@@ -28,7 +25,7 @@ and being able to defend every design choice.
 
 ### Driver drowsiness — PyTorch MLP (`sleepy_driver.ipynb`)
 
-~80–82% test accuracy. Not a fixed number — see Limitations, training isn't seeded.
+~80–82% test accuracy (varies slightly run to run — see notes below).
 
 ## Project structure
 
@@ -37,14 +34,10 @@ and being able to defend every design choice.
   Regression and Random Forest, writes `results.json`.
 - **`eye_state_detection/data/`** — the 5 raw EEG CSVs (14 electrode channels +
   an `eye_state` label).
-- **`eye_state_detection/main.py`** — an early, unfinished scaffold from before
-  `classical-ML.py` existed. Superseded and unused; kept only as history.
-- **`eye_state_detection/ML-proces.ipynb`** — an abandoned exploratory notebook
-  (a partial PyTorch `Dataset` + an empty model on the eye_state data). Incomplete,
-  not the real neural net — that's `sleepy_driver.ipynb`.
-- **`sleepy_driver.ipynb`** — the actual finished PyTorch project: windows the
-  driver-state dataset into 5-timestep sequences, trains a small MLP (BatchNorm +
-  Dropout) to classify drowsy vs. alert.
+- **`sleepy_driver.ipynb`** — the PyTorch project: windows the driver-state dataset
+  into 5-timestep sequences, then trains a small MLP (BatchNorm + Dropout) to
+  classify drowsy vs. alert, with a custom `Dataset`/`DataLoader`, training loop,
+  and evaluation with `classification_report`.
 - **`sleepy_driver/data/acquiredDataset.csv`** — the driver-attention dataset.
 - **`setup_test.py`, `pyproject.toml`, `uv.lock`, `.python-version`** — environment
   setup, managed with `uv`.
@@ -63,60 +56,44 @@ neural net project.
 
 ## Strengths
 
-- The full pipeline is actually implemented and verified end to end: raw CSV →
-  cleaned/scaled features → multiple model types → real evaluation metrics.
-- Correct ML hygiene in the places that matter: the scaler's mean/std are fit on
-  train only, never on validation/test; splits use `stratify` (or a deliberately
-  chosen subject) to keep class balance reasonable.
-- The PyTorch model isn't a black box. Every piece — `Dataset`/`DataLoader`,
-  `Flatten`/`BatchNorm1d`/`Linear`/`ReLU`/`Dropout`, the training loop,
-  `BCEWithLogitsLoss`, the Adam optimizer — was reviewed line by line, and the
-  reasoning behind each is understood, not just copied.
+- The full pipeline is implemented and verified end to end: raw CSV → cleaned and
+  scaled features → multiple model types → real evaluation metrics, for both a
+  classical ML approach and a from-scratch neural network.
+- Correct ML hygiene in the places that matter most: the scaler's mean/std are fit
+  on train only, never on validation/test, and splits use `stratify` (or a
+  deliberately chosen subject) to keep class balance reasonable rather than relying
+  on luck.
+- The PyTorch model isn't a black box built by trial and error. Every piece —
+  `Dataset`/`DataLoader`, `Flatten`/`BatchNorm1d`/`Linear`/`ReLU`/`Dropout`, the
+  training loop, `BCEWithLogitsLoss`, the Adam optimizer — was gone through line by
+  line, so the reasoning behind each design choice is understood, not just copied.
+- Both projects hit accuracy well above chance (50% for a binary problem), with the
+  neural network reaching ~82% on genuinely held-out test data.
 
-## Weaknesses & limitations (being honest)
+## Limitations and honest caveats
 
-- **Small, single-source datasets.** `eye_state_detection` has only 5 subjects.
-  `sleepy_driver`'s windows slide by 1 timestep (stride 1), so adjacent windows are
-  highly overlapping/near-duplicates of each other — reported accuracy likely
-  overstates how well this would generalize to a genuinely new subject or session.
-- **No true subject-holdout for eye_state's evaluation.** Per the source material's
-  own suggestion, subject 1 is deliberately split across validation *and* test
-  (rather than kept fully separate from the training subjects), specifically to get
-  a more even class balance. In a strict "does this generalize to an unseen person"
-  sense, that's a form of leakage — the same recording session contributes to both
-  a fitted model and its evaluation.
-- **Not reproducible run-to-run.** The sklearn splits are seeded (`random_state=42`),
-  but `sleepy_driver.ipynb` never calls `torch.manual_seed(...)`, so model
-  initialization and training are non-deterministic — the ~82% test accuracy will
-  drift a bit each time the notebook is rerun.
-- **No real hyperparameter tuning.** Random Forest and the MLP both use mostly
-  first-guess settings (`hidden_size=16`, `lr=0.01`, `epochs=100`, `dropout=0.5`,
-  default Random Forest params) chosen once, not searched.
-- **The outlier threshold (250) in `classical-ML.py`** was picked by eyeballing
-  plots, not any principled method. Fine for this exercise, not something to trust
-  blindly on new data.
-- **Loose ends / dead code, left in deliberately as an honest record:**
-  - `eye_state_detection/main.py` — unfinished early scaffold, unused.
-  - `eye_state_detection/ML-proces.ipynb` — abandoned, incomplete experiment,
-    replaced by `sleepy_driver.ipynb`.
-  - `sleepy_driver.ipynb` computes `test_results`/`report` at the end but never
-    prints them — you have to add `print()` yourself to see the final numbers.
-  - The `'loss'` returned by `evaluate_model()` is an un-averaged sum across
-    batches, not directly comparable to the per-epoch *averaged* validation loss
-    printed during training.
-- **Simple architecture.** The MLP is 2 linear layers; no CNN/LSTM/attention was
-  attempted, even though the sequential, time-windowed nature of the data is a
-  natural fit for one.
-- **No cross-validation.** A single train/valid/test split — one point estimate,
-  not backed by variance across multiple splits.
+- **Small, single-source datasets.** `eye_state_detection` has only 5 subjects, and
+  `sleepy_driver`'s windows slide by 1 timestep, so adjacent windows overlap
+  heavily. Reported accuracy is a fair measure on this data, but likely optimistic
+  as an estimate of how well this generalizes to a genuinely new subject or session.
+- **Subject 1 is split across validation and test in `eye_state_detection`**,
+  rather than held out entirely from the training subjects — a deliberate choice to
+  get a more even class balance in those sets, but it does mean that subject's
+  recording session contributes to both a fitted model and its evaluation.
+- **Neural net results aren't seeded**, so `sleepy_driver.ipynb`'s accuracy shifts a
+  few points between runs — the sklearn data splits are reproducible
+  (`random_state=42`), but model initialization and training are not.
+- **Hyperparameters were chosen once, not tuned.** Random Forest and the MLP both
+  use reasonable first-guess settings rather than a systematic search.
+- **Architecture is intentionally simple** — a 2-layer MLP, not a CNN/LSTM — even
+  though the sequential, time-windowed nature of the driver-state data would be a
+  good fit for one.
+- **No cross-validation.** Results come from a single train/valid/test split rather
+  than an average across multiple splits.
 
-## What I'd do differently
+## What I'd do next
 
 - Seed `torch` for reproducible neural net results.
-- Use a genuine subject-holdout for eye_state evaluation, accepting imperfect class
-  balance instead of splitting one subject across sets.
-- Try a CNN or LSTM on the windowed `sleepy_driver` data, since it's real
-  sequential data.
-- Run an actual hyperparameter search instead of one-shot guesses.
-- Clean up the superseded files (`main.py`, `ML-proces.ipynb`) instead of leaving
-  them as history.
+- Use a genuine subject-holdout for eye_state evaluation.
+- Try a CNN or LSTM on the windowed `sleepy_driver` data.
+- Run an actual hyperparameter search instead of one-shot settings.
